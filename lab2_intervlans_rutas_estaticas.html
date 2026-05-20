@@ -1,0 +1,1007 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lab 2 — Inter-VLANs & Rutas Estáticas</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=DM+Sans:wght@400;500;600;700&display=swap');
+
+:root {
+  --bg:     #0d1117;
+  --bg2:    #161b22;
+  --bg3:    #21262d;
+  --bg4:    #30363d;
+  --txt:    #e6edf3;
+  --txt2:   #8b949e;
+  --txt3:   #484f58;
+  --border: rgba(240,246,252,0.1);
+  --border2:rgba(240,246,252,0.18);
+  --teal:   #39d0b4;
+  --blue:   #4d9de0;
+  --purple: #b48afc;
+  --amber:  #f0b429;
+  --red:    #f87171;
+  --green:  #56d364;
+  --cyan:   #38bdf8;
+  --radius: 8px;
+  --radius-lg: 12px;
+  --font: 'DM Sans', sans-serif;
+  --mono: 'JetBrains Mono', monospace;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 15px; scroll-behavior: smooth; }
+body {
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--txt);
+  min-height: 100vh;
+}
+
+/* ─── GRID BG ─── */
+body::before {
+  content: '';
+  position: fixed; inset: 0;
+  background-image:
+    linear-gradient(rgba(57,208,180,.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(57,208,180,.04) 1px, transparent 1px);
+  background-size: 32px 32px;
+  pointer-events: none; z-index: 0;
+}
+
+.app { position: relative; z-index: 1; max-width: 780px; margin: 0 auto; padding: 1.25rem 1rem 4rem; }
+
+/* ─── HEADER ─── */
+.site-header {
+  display: flex; align-items: center; gap: 12px;
+  padding-bottom: 1.25rem; margin-bottom: 1.25rem;
+  border-bottom: 1px solid var(--border);
+}
+.lab-badge {
+  background: linear-gradient(135deg, #39d0b4 0%, #4d9de0 100%);
+  color: #0d1117; font-family: var(--mono); font-size: .65rem;
+  font-weight: 600; padding: 4px 10px; border-radius: 4px;
+  letter-spacing: .06em; text-transform: uppercase; white-space: nowrap;
+}
+.site-title { font-size: 1.05rem; font-weight: 700; line-height: 1.3; }
+.site-sub   { font-size: .75rem; color: var(--txt2); margin-top: 1px; }
+
+/* ─── LOGIN ─── */
+#screen-login {
+  display: flex; flex-direction: column; align-items: center;
+  justify-content: center; gap: 1.25rem; padding: 4rem 1rem 3rem;
+  text-align: center; min-height: 55vh;
+}
+.login-ring {
+  width: 72px; height: 72px; border-radius: 50%;
+  border: 2px solid var(--teal); background: rgba(57,208,180,.1);
+  color: var(--teal); font-family: var(--mono); font-size: 1.4rem;
+  font-weight: 700; display: flex; align-items: center; justify-content: center;
+  transition: all .2s;
+}
+.login-title  { font-size: 1.2rem; font-weight: 700; }
+.login-desc   { font-size: .82rem; color: var(--txt2); max-width: 340px; line-height: 1.65; }
+.login-row    { display: flex; gap: 8px; width: 100%; max-width: 360px; }
+.login-row input { flex: 1; }
+.login-hint   { font-size: .7rem; color: var(--txt3); max-width: 340px; line-height: 1.6; }
+
+/* ─── INPUTS / BUTTONS ─── */
+input[type=text] {
+  font-family: var(--font); font-size: .875rem; padding: 9px 13px;
+  border: 1px solid var(--border2); border-radius: var(--radius);
+  background: var(--bg2); color: var(--txt); outline: none;
+  transition: border-color .15s, box-shadow .15s; width: 100%;
+}
+input[type=text]:focus {
+  border-color: var(--teal);
+  box-shadow: 0 0 0 3px rgba(57,208,180,.15);
+}
+button {
+  font-family: var(--font); font-size: .875rem; font-weight: 500;
+  cursor: pointer; border: 1px solid var(--border2);
+  background: var(--bg3); color: var(--txt); border-radius: var(--radius);
+  padding: 8px 16px; transition: all .15s; white-space: nowrap;
+}
+button:hover { border-color: var(--border2); background: var(--bg4); }
+button:active { opacity: .75; }
+.btn-primary {
+  background: rgba(57,208,180,.15); color: var(--teal);
+  border-color: rgba(57,208,180,.35); font-weight: 600;
+}
+.btn-primary:hover { background: rgba(57,208,180,.22); }
+.btn-sm { font-size: .75rem; padding: 5px 11px; }
+.btn-icon { padding: 6px 10px; font-size: .8rem; }
+
+/* ─── TOPBAR ─── */
+.topbar {
+  display: flex; align-items: center; gap: 8px;
+  flex-wrap: wrap; margin-bottom: 1.25rem;
+  padding: .75rem 1rem;
+  background: var(--bg2); border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+.user-chip {
+  display: flex; align-items: center; gap: 8px;
+  padding: 4px 10px 4px 4px;
+  border: 1px solid var(--border); border-radius: 20px;
+  background: var(--bg3);
+}
+.xp-chip {
+  display: flex; align-items: center; gap: 5px;
+  padding: 4px 11px; border: 1px solid rgba(86,211,100,.25);
+  border-radius: 20px; font-size: .78rem; background: rgba(86,211,100,.08);
+}
+.xp-val { font-weight: 700; color: var(--green); font-family: var(--mono); }
+.tab-bar { display: flex; gap: 4px; margin-left: auto; flex-wrap: wrap; }
+.tab {
+  font-size: .78rem; font-weight: 500; padding: 5px 13px;
+  border-radius: 20px; border: 1px solid var(--border);
+  background: transparent; color: var(--txt2); cursor: pointer; transition: all .15s;
+}
+.tab.on {
+  background: rgba(57,208,180,.12); color: var(--teal);
+  border-color: rgba(57,208,180,.35);
+}
+
+/* ─── AVATAR ─── */
+.avatar {
+  width: 28px; height: 28px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: .65rem; font-weight: 700; flex-shrink: 0;
+  font-family: var(--mono);
+}
+
+/* ─── PHASE PILLS ─── */
+.phase-pills { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 1rem; }
+.phase-pill {
+  font-size: .72rem; font-weight: 500; padding: 5px 12px;
+  border-radius: 16px; border: 1px solid var(--border);
+  background: var(--bg2); color: var(--txt2); cursor: pointer;
+  position: relative; transition: all .15s;
+}
+.phase-pill.sel {
+  background: var(--bg3); border-color: var(--border2); color: var(--txt);
+}
+.mod-dot {
+  position: absolute; top: -2px; right: -2px;
+  width: 7px; height: 7px; border-radius: 50%;
+  border: 1.5px solid var(--bg);
+}
+
+/* ─── PROGRESS ─── */
+.prog-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: .4rem; }
+.prog-label  { font-size: .72rem; color: var(--txt2); font-family: var(--mono); }
+.prog-track  { height: 4px; background: var(--bg4); border-radius: 2px; overflow: hidden; margin-bottom: 1rem; }
+.prog-fill   { height: 100%; border-radius: 2px; transition: width .45s cubic-bezier(.4,0,.2,1); }
+
+/* ─── HITO GRID ─── */
+.hitos-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+@media(max-width:520px){ .hitos-grid { grid-template-columns: 1fr; } }
+
+.hito-card {
+  border: 1px solid var(--border); border-radius: var(--radius-lg);
+  padding: .875rem .875rem .75rem; cursor: pointer;
+  transition: border-color .15s, background .15s;
+  position: relative; overflow: hidden;
+}
+.hito-card:hover { border-color: var(--border2); background: var(--bg2); }
+.hito-card::before {
+  content: ''; position: absolute; left: 0; top: 0; bottom: 0;
+  width: 3px; border-radius: 3px 0 0 3px;
+  background: var(--strip-color, var(--bg4));
+  transition: background .15s;
+}
+.hito-card.done { border-color: rgba(86,211,100,.3); background: rgba(86,211,100,.05); }
+.hito-card.done::before { background: var(--green); }
+
+.hito-top  { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
+.hito-title{ font-size: .8rem; font-weight: 500; line-height: 1.4; flex: 1; }
+.hito-card.done .hito-title { color: var(--green); }
+.hito-meta { display: flex; flex-direction: column; align-items: flex-end; gap: 5px; flex-shrink: 0; }
+
+.check-ring {
+  width: 20px; height: 20px; border-radius: 50%;
+  border: 1.5px solid var(--border2);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 10px; transition: all .2s; color: transparent;
+}
+.hito-card.done .check-ring {
+  background: var(--green); border-color: var(--green); color: #0d1117;
+}
+.hito-xp { font-size: .68rem; color: var(--txt3); font-family: var(--mono); }
+
+/* ─── BADGE ─── */
+.badge {
+  display: inline-block; font-size: .65rem; font-weight: 600;
+  padding: 2px 7px; border-radius: 6px; font-family: var(--mono); white-space: nowrap;
+}
+.b-config  { background: rgba(240,180,41,.12);  color: var(--amber); border: 1px solid rgba(240,180,41,.25); }
+.b-lab     { background: rgba(77,157,224,.12);  color: var(--blue);  border: 1px solid rgba(77,157,224,.25); }
+.b-verify  { background: rgba(86,211,100,.12);  color: var(--green); border: 1px solid rgba(86,211,100,.25); }
+.b-reto    { background: rgba(248,113,113,.12); color: var(--red);   border: 1px solid rgba(248,113,113,.25); }
+.b-plan    { background: rgba(180,138,252,.12); color: var(--purple);border: 1px solid rgba(180,138,252,.25); }
+
+/* ─── REFERENCE PANEL ─── */
+.ref-panel {
+  background: var(--bg2); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); margin-bottom: 1rem;
+  overflow: hidden;
+}
+.ref-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: .65rem 1rem; cursor: pointer; user-select: none;
+  border-bottom: 1px solid transparent; transition: border-color .15s;
+}
+.ref-header:hover { border-color: var(--border); }
+.ref-header-left { display: flex; align-items: center; gap: 8px; }
+.ref-title { font-size: .8rem; font-weight: 600; }
+.ref-sub   { font-size: .72rem; color: var(--txt2); }
+.ref-body  { display: none; padding: .75rem 1rem 1rem; }
+.ref-body.open { display: block; }
+
+.ref-table { width: 100%; border-collapse: collapse; font-size: .72rem; }
+.ref-table th {
+  text-align: left; padding: 5px 8px; color: var(--txt3);
+  font-family: var(--mono); font-weight: 600; font-size: .65rem;
+  text-transform: uppercase; letter-spacing: .05em;
+  border-bottom: 1px solid var(--border); background: var(--bg3);
+}
+.ref-table td {
+  padding: 6px 8px; border-bottom: 1px solid var(--border);
+  font-family: var(--mono); color: var(--txt2);
+  vertical-align: middle;
+}
+.ref-table tr:last-child td { border-bottom: none; }
+.ref-table tr:hover td { background: var(--bg3); }
+.ref-table .hi { color: var(--teal); }
+.ref-table .amber { color: var(--amber); }
+.ref-table .blue  { color: var(--blue); }
+.ref-table .red   { color: var(--red); }
+
+/* ─── TOPOLOGY SVG ─── */
+.topo-wrap {
+  background: var(--bg2); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); padding: 1rem; margin-bottom: 1rem;
+  overflow: hidden;
+}
+.topo-title { font-size: .78rem; font-weight: 600; margin-bottom: .75rem;
+  display: flex; align-items: center; gap: 6px; color: var(--txt2); }
+
+/* ─── RANKING ─── */
+.rank-list { border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; }
+.rank-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 11px 14px; border-bottom: 1px solid var(--border);
+  transition: background .12s;
+}
+.rank-row:last-child { border-bottom: none; }
+.rank-row.me { background: rgba(57,208,180,.06); }
+.rank-pos   { font-family: var(--mono); font-size: .8rem; font-weight: 700; min-width: 24px; text-align: center; color: var(--txt3); }
+.rank-info  { flex: 1; }
+.rank-name  { font-size: .83rem; font-weight: 600; }
+.rank-sub   { font-size: .7rem; color: var(--txt2); margin-top: 1px; font-family: var(--mono); }
+.rank-bar-wrap { width: 80px; height: 5px; background: var(--bg4); border-radius: 3px; overflow: hidden; }
+.rank-bar   { height: 100%; border-radius: 3px; transition: width .4s; }
+.rank-xp    { font-size: .8rem; font-weight: 700; min-width: 55px; text-align: right; font-family: var(--mono); }
+
+/* ─── CLASS VIEW ─── */
+.stat-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 8px; margin-bottom: .875rem; }
+@media(max-width:520px){ .stat-grid { grid-template-columns: repeat(2,1fr); } }
+.stat-card { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: .875rem; text-align: center; }
+.stat-val  { font-size: 1.4rem; font-weight: 700; font-family: var(--mono); }
+.stat-lbl  { font-size: .68rem; color: var(--txt2); margin-top: 3px; }
+.class-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+@media(max-width:520px){ .class-grid { grid-template-columns: 1fr; } }
+.class-card { border: 1px solid var(--border); border-radius: var(--radius-lg); padding: .875rem; }
+.class-card.me { border-color: rgba(57,208,180,.35); background: rgba(57,208,180,.04); }
+.mini-row  { display: flex; align-items: center; gap: 6px; margin-top: 5px; }
+.mini-lbl  { font-size: .62rem; color: var(--txt3); font-family: var(--mono); width: 52px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mini-track{ flex: 1; height: 4px; background: var(--bg4); border-radius: 2px; overflow: hidden; }
+.mini-fill { height: 100%; border-radius: 2px; transition: width .4s; }
+.mini-pct  { font-size: .62rem; color: var(--txt3); font-family: var(--mono); min-width: 26px; text-align: right; }
+
+/* ─── ACTIONS ROW ─── */
+.actions-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 1rem; align-items: center; }
+
+/* ─── SECTION LABEL ─── */
+.sec-label {
+  font-size: .68rem; font-weight: 600; color: var(--txt3); font-family: var(--mono);
+  text-transform: uppercase; letter-spacing: .06em; margin-bottom: .5rem;
+}
+
+/* ─── TOAST ─── */
+#toast {
+  position: fixed; bottom: 1.5rem; left: 50%;
+  transform: translateX(-50%) translateY(90px);
+  background: var(--bg4); color: var(--txt); border: 1px solid var(--border2);
+  padding: 8px 18px; border-radius: 20px; font-size: .78rem;
+  transition: transform .3s cubic-bezier(.4,0,.2,1);
+  pointer-events: none; z-index: 999; white-space: nowrap;
+  box-shadow: 0 4px 20px rgba(0,0,0,.4);
+}
+#toast.show { transform: translateX(-50%) translateY(0); }
+
+/* ─── SCREEN ─── */
+.screen { display: none; }
+.screen.active { display: block; }
+.empty { text-align: center; padding: 2.5rem; color: var(--txt2); font-size: .85rem; }
+.divider { height: 1px; background: var(--border); margin: 1rem 0; }
+.flex-between { display: flex; align-items: center; justify-content: space-between; }
+.gap-8 { gap: 8px; }
+.mb-1 { margin-bottom: .75rem; }
+.section-title { font-size: .88rem; font-weight: 600; }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- HEADER -->
+  <header class="site-header">
+    <div>
+      <div class="lab-badge">LAB 2</div>
+    </div>
+    <div>
+      <div class="site-title">Inter-VLANs y Rutas Estáticas</div>
+      <div class="site-sub">Redes Básicas · Santo Domingo ↔ Santiago · Cisco 1841 + 2950-24</div>
+    </div>
+  </header>
+
+  <!-- ════ LOGIN ════ -->
+  <div id="screen-login" class="screen active">
+    <div class="login-ring" id="login-av">?</div>
+    <div>
+      <div class="login-title">¡Bienvenido al Lab 2!</div>
+      <p class="login-desc">Ingresa tu nombre para registrar tu progreso, ganar XP y competir con tus compañeros.</p>
+    </div>
+    <div class="login-row">
+      <input type="text" id="login-input" placeholder="Tu nombre completo..."
+             maxlength="30" oninput="previewAv()" onkeydown="if(event.key==='Enter')doLogin()"/>
+      <button class="btn-primary" onclick="doLogin()">Entrar →</button>
+    </div>
+    <p id="login-err" style="font-size:.72rem;color:var(--red);min-height:16px"></p>
+    <p class="login-hint">Tu progreso se guarda en este dispositivo. Usa Exportar/Importar para compartir con el profesor.</p>
+  </div>
+
+  <!-- ════ MAIN ════ -->
+  <div id="screen-main" class="screen">
+
+    <!-- TOPBAR -->
+    <div class="topbar">
+      <div class="user-chip">
+        <div class="avatar" id="top-av"></div>
+        <span style="font-size:.83rem;font-weight:600" id="top-name"></span>
+      </div>
+      <div class="xp-chip">⚡ <span class="xp-val" id="top-xp">0 XP</span></div>
+      <div class="tab-bar">
+        <button class="tab on"  onclick="showTab('hitos',this)">Mis hitos</button>
+        <button class="tab"     onclick="showTab('ref',this)">Referencia</button>
+        <button class="tab"     onclick="showTab('ranking',this)">Ranking</button>
+        <button class="tab"     onclick="showTab('clase',this)">Clase</button>
+      </div>
+    </div>
+
+    <!-- ── TAB: HITOS ── -->
+    <div id="tab-hitos">
+      <div class="phase-pills" id="phase-pills"></div>
+      <div class="prog-header">
+        <span class="prog-label" id="prog-lbl"></span>
+        <span class="prog-label" id="prog-pct" style="color:var(--teal)"></span>
+      </div>
+      <div class="prog-track"><div class="prog-fill" id="prog-fill"></div></div>
+      <div class="hitos-grid" id="hitos-grid"></div>
+      <div class="actions-row">
+        <button class="btn-sm" onclick="exportData()">↓ Exportar progreso</button>
+        <button class="btn-sm" onclick="document.getElementById('imp').click()">↑ Importar compañero</button>
+        <input type="file" id="imp" accept=".json" style="display:none" onchange="importData(event)"/>
+        <span style="font-size:.7rem;color:var(--txt3);margin-left:4px">Comparte tu .json con el profesor para el ranking</span>
+      </div>
+    </div>
+
+    <!-- ── TAB: REFERENCIA ── -->
+    <div id="tab-ref" style="display:none">
+
+      <!-- Topology -->
+      <div class="topo-wrap">
+        <div class="topo-title">🗺 Topología completa — Santo Domingo ↔ Santiago</div>
+        <svg width="100%" viewBox="0 0 720 300" style="display:block;max-height:260px" role="img">
+          <title>Topología de red del laboratorio 2</title>
+          <defs>
+            <marker id="arr" viewBox="0 0 8 8" refX="6" refY="4" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+              <path d="M1 1L7 4L1 7" fill="none" stroke="context-stroke" stroke-width="1.2" stroke-linecap="round"/>
+            </marker>
+          </defs>
+
+          <!-- Santo Domingo label -->
+          <text x="170" y="18" text-anchor="middle" font-size="10" font-family="JetBrains Mono,monospace" fill="#39d0b4" font-weight="600">SANTO DOMINGO</text>
+          <rect x="30" y="24" width="280" height="264" rx="8" fill="none" stroke="rgba(57,208,180,.2)" stroke-width="1" stroke-dasharray="4 3"/>
+
+          <!-- Santiago label -->
+          <text x="550" y="18" text-anchor="middle" font-size="10" font-family="JetBrains Mono,monospace" fill="#4d9de0" font-weight="600">SANTIAGO</text>
+          <rect x="410" y="24" width="280" height="264" rx="8" fill="none" stroke="rgba(77,157,224,.2)" stroke-width="1" stroke-dasharray="4 3"/>
+
+          <!-- SW1 SD -->
+          <rect x="60" y="40" width="90" height="32" rx="5" fill="#21262d" stroke="rgba(57,208,180,.4)" stroke-width="1"/>
+          <text x="105" y="60" text-anchor="middle" font-size="9" font-family="JetBrains Mono,monospace" fill="#39d0b4" font-weight="600">SW1</text>
+
+          <!-- SW2 SD -->
+          <rect x="60" y="100" width="90" height="32" rx="5" fill="#21262d" stroke="rgba(57,208,180,.4)" stroke-width="1"/>
+          <text x="105" y="120" text-anchor="middle" font-size="9" font-family="JetBrains Mono,monospace" fill="#39d0b4" font-weight="600">SW2</text>
+
+          <!-- SW3/core SD -->
+          <rect x="170" y="70" width="90" height="32" rx="5" fill="#161b22" stroke="rgba(57,208,180,.7)" stroke-width="1.5"/>
+          <text x="215" y="82" text-anchor="middle" font-size="9" font-family="JetBrains Mono,monospace" fill="#39d0b4" font-weight="600">SW3 (core)</text>
+          <text x="215" y="94" text-anchor="middle" font-size="8" font-family="JetBrains Mono,monospace" fill="#8b949e">F0/22→R0</text>
+
+          <!-- R0 -->
+          <rect x="170" y="185" width="90" height="34" rx="5" fill="#161b22" stroke="rgba(240,180,41,.6)" stroke-width="1.5"/>
+          <text x="215" y="200" text-anchor="middle" font-size="9" font-family="JetBrains Mono,monospace" fill="#f0b429" font-weight="600">R0</text>
+          <text x="215" y="212" text-anchor="middle" font-size="7.5" font-family="JetBrains Mono,monospace" fill="#8b949e">e0/1: .1/30</text>
+
+          <!-- SD links -->
+          <line x1="150" y1="56" x2="170" y2="82" stroke="rgba(57,208,180,.5)" stroke-width="1.2" marker-end="url(#arr)"/>
+          <line x1="150" y1="116" x2="170" y2="90" stroke="rgba(57,208,180,.5)" stroke-width="1.2" marker-end="url(#arr)"/>
+          <line x1="215" y1="102" x2="215" y2="185" stroke="rgba(57,208,180,.5)" stroke-width="1.2" marker-end="url(#arr)"/>
+
+          <!-- VLAN labels SD -->
+          <text x="58" y="145" font-size="7.5" font-family="JetBrains Mono,monospace" fill="#484f58">VLAN30:172.16.30.0/24</text>
+          <text x="58" y="155" font-size="7.5" font-family="JetBrains Mono,monospace" fill="#484f58">VLAN40:10.40.0.0/24</text>
+          <text x="58" y="165" font-size="7.5" font-family="JetBrains Mono,monospace" fill="#484f58">VLAN50:192.168.50.0/24</text>
+
+          <!-- WAN link -->
+          <line x1="260" y1="202" x2="370" y2="202" stroke="rgba(248,113,113,.6)" stroke-width="1.8" stroke-dasharray="5 3" marker-end="url(#arr)"/>
+          <text x="315" y="195" text-anchor="middle" font-size="8" font-family="JetBrains Mono,monospace" fill="#f87171">192.168.1.0/30</text>
+          <text x="285" y="215" font-size="7.5" font-family="JetBrains Mono,monospace" fill="#484f58">.1</text>
+          <text x="356" y="215" font-size="7.5" font-family="JetBrains Mono,monospace" fill="#484f58">.2</text>
+
+          <!-- R1 -->
+          <rect x="460" y="185" width="90" height="34" rx="5" fill="#161b22" stroke="rgba(240,180,41,.6)" stroke-width="1.5"/>
+          <text x="505" y="200" text-anchor="middle" font-size="9" font-family="JetBrains Mono,monospace" fill="#f0b429" font-weight="600">R1</text>
+          <text x="505" y="212" text-anchor="middle" font-size="7.5" font-family="JetBrains Mono,monospace" fill="#8b949e">e0/1: .2/30</text>
+
+          <!-- SW4/core Santiago -->
+          <rect x="460" y="70" width="90" height="32" rx="5" fill="#161b22" stroke="rgba(77,157,224,.7)" stroke-width="1.5"/>
+          <text x="505" y="82" text-anchor="middle" font-size="9" font-family="JetBrains Mono,monospace" fill="#4d9de0" font-weight="600">SW4 (core)</text>
+          <text x="505" y="94" text-anchor="middle" font-size="8" font-family="JetBrains Mono,monospace" fill="#8b949e">F0/22→R1</text>
+
+          <!-- SW5 Santiago -->
+          <rect x="570" y="40" width="90" height="32" rx="5" fill="#21262d" stroke="rgba(77,157,224,.4)" stroke-width="1"/>
+          <text x="615" y="60" text-anchor="middle" font-size="9" font-family="JetBrains Mono,monospace" fill="#4d9de0" font-weight="600">SW5</text>
+
+          <!-- SW6 Santiago -->
+          <rect x="570" y="100" width="90" height="32" rx="5" fill="#21262d" stroke="rgba(77,157,224,.4)" stroke-width="1"/>
+          <text x="615" y="120" text-anchor="middle" font-size="9" font-family="JetBrains Mono,monospace" fill="#4d9de0" font-weight="600">SW6</text>
+
+          <!-- Santiago links -->
+          <line x1="550" y1="86" x2="570" y2="60" stroke="rgba(77,157,224,.5)" stroke-width="1.2" marker-end="url(#arr)"/>
+          <line x1="550" y1="86" x2="570" y2="110" stroke="rgba(77,157,224,.5)" stroke-width="1.2" marker-end="url(#arr)"/>
+          <line x1="505" y1="102" x2="505" y2="185" stroke="rgba(77,157,224,.5)" stroke-width="1.2" marker-end="url(#arr)"/>
+
+          <!-- VLAN labels Santiago -->
+          <text x="418" y="145" font-size="7.5" font-family="JetBrains Mono,monospace" fill="#484f58">VLAN60:10.60.0.0/27</text>
+          <text x="418" y="155" font-size="7.5" font-family="JetBrains Mono,monospace" fill="#484f58">VLAN70:10.60.0.32/27</text>
+          <text x="418" y="165" font-size="7.5" font-family="JetBrains Mono,monospace" fill="#484f58">VLAN80:10.60.0.64/27</text>
+
+          <!-- PC dots SD -->
+          <circle cx="60" cy="44" r="5" fill="rgba(57,208,180,.3)" stroke="#39d0b4" stroke-width="1"/>
+          <text x="69" y="47" font-size="7" font-family="JetBrains Mono,monospace" fill="#39d0b4">PC1–3</text>
+          <circle cx="60" cy="104" r="5" fill="rgba(57,208,180,.3)" stroke="#39d0b4" stroke-width="1"/>
+          <text x="69" y="107" font-size="7" font-family="JetBrains Mono,monospace" fill="#39d0b4">PC4–6</text>
+
+          <!-- PC dots Santiago -->
+          <circle cx="640" cy="44" r="5" fill="rgba(77,157,224,.3)" stroke="#4d9de0" stroke-width="1"/>
+          <text x="649" y="47" font-size="7" font-family="JetBrains Mono,monospace" fill="#4d9de0">PC7–9</text>
+          <circle cx="640" cy="104" r="5" fill="rgba(77,157,224,.3)" stroke="#4d9de0" stroke-width="1"/>
+          <text x="649" y="107" font-size="7" font-family="JetBrains Mono,monospace" fill="#4d9de0">PC10–12</text>
+        </svg>
+      </div>
+
+      <!-- Table: IP addresses SD (completed - lab 1) -->
+      <div class="ref-panel">
+        <div class="ref-header" onclick="toggleRef(this)">
+          <div class="ref-header-left">
+            <span class="lab-badge" style="background:rgba(57,208,180,.15);color:var(--teal);font-size:.6rem">✓ LAB 1</span>
+            <div>
+              <div class="ref-title">Tabla de IPs — Santo Domingo (ya configurado)</div>
+              <div class="ref-sub">PC1–PC6 · VLAN30, 40, 50</div>
+            </div>
+          </div>
+          <span style="color:var(--txt3);font-size:.8rem;transition:transform .2s">▼</span>
+        </div>
+        <div class="ref-body">
+          <table class="ref-table">
+            <thead><tr><th>Equipo</th><th>Puerto</th><th>VLAN</th><th>Dirección IP</th><th>Gateway</th></tr></thead>
+            <tbody>
+              <tr><td class="hi">PC1</td><td>SW1-F0/1</td><td class="amber">30</td><td>172.16.30.2/24</td><td>172.16.30.1</td></tr>
+              <tr><td class="hi">PC2</td><td>SW1-F0/3</td><td class="amber">40</td><td>10.40.0.2/24</td><td>10.40.0.1</td></tr>
+              <tr><td class="hi">PC3</td><td>SW1-F0/2</td><td class="amber">50</td><td>192.168.50.2/24</td><td>192.168.50.1</td></tr>
+              <tr><td class="hi">PC4</td><td>SW2-F0/1</td><td class="amber">40</td><td>10.40.0.3/24</td><td>10.40.0.1</td></tr>
+              <tr><td class="hi">PC5</td><td>SW2-F0/2</td><td class="amber">50</td><td>192.168.50.3/24</td><td>192.168.50.1</td></tr>
+              <tr><td class="hi">PC6</td><td>SW2-F0/3</td><td class="amber">30</td><td>172.16.30.3/24</td><td>172.16.30.1</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Table: Subredes Santiago -->
+      <div class="ref-panel">
+        <div class="ref-header" onclick="toggleRef(this)">
+          <div class="ref-header-left">
+            <span class="lab-badge" style="font-size:.6rem">LAB 2</span>
+            <div>
+              <div class="ref-title">Rangos de subred — Santiago</div>
+              <div class="ref-sub">VLAN60, 70, 80 — /27</div>
+            </div>
+          </div>
+          <span style="color:var(--txt3);font-size:.8rem">▼</span>
+        </div>
+        <div class="ref-body">
+          <table class="ref-table">
+            <thead><tr><th>Red Base</th><th>VLAN</th><th>Rango de hosts</th><th>Máscara</th><th>Broadcast</th></tr></thead>
+            <tbody>
+              <tr><td>10.60.0.0/27</td><td class="amber">60</td><td class="hi">10.60.0.1 – 10.60.0.30</td><td>255.255.255.224</td><td class="red">10.60.0.31</td></tr>
+              <tr><td>10.60.0.32/27</td><td class="amber">70</td><td class="hi">10.60.0.33 – 10.60.0.62</td><td>255.255.255.224</td><td class="red">10.60.0.63</td></tr>
+              <tr><td>10.60.0.64/27</td><td class="amber">80</td><td class="hi">10.60.0.65 – 10.60.0.94</td><td>255.255.255.224</td><td class="red">10.60.0.95</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Table: IPs Santiago -->
+      <div class="ref-panel">
+        <div class="ref-header" onclick="toggleRef(this)">
+          <div class="ref-header-left">
+            <span class="lab-badge" style="font-size:.6rem">LAB 2</span>
+            <div>
+              <div class="ref-title">Tabla de IPs — Santiago</div>
+              <div class="ref-sub">PC7–PC12 · VLAN60, 70, 80</div>
+            </div>
+          </div>
+          <span style="color:var(--txt3);font-size:.8rem">▼</span>
+        </div>
+        <div class="ref-body">
+          <table class="ref-table">
+            <thead><tr><th>Equipo</th><th>Puerto</th><th>VLAN</th><th>Dirección IP</th><th>Gateway</th></tr></thead>
+            <tbody>
+              <tr><td class="blue">PC7</td><td>SW5-F0/1</td><td class="amber">60</td><td>10.60.0.2/27</td><td>10.60.0.1</td></tr>
+              <tr><td class="blue">PC8</td><td>SW5-F0/3</td><td class="amber">70</td><td>10.60.0.34/27</td><td>10.60.0.33</td></tr>
+              <tr><td class="blue">PC9</td><td>SW5-F0/2</td><td class="amber">80</td><td>10.60.0.66/27</td><td>10.60.0.65</td></tr>
+              <tr><td class="blue">PC10</td><td>SW6-F0/1</td><td class="amber">70</td><td>10.60.0.35/27</td><td>10.60.0.33</td></tr>
+              <tr><td class="blue">PC11</td><td>SW6-F0/2</td><td class="amber">80</td><td>10.60.0.67/27</td><td>10.60.0.65</td></tr>
+              <tr><td class="blue">PC12</td><td>SW6-F0/3</td><td class="amber">60</td><td>10.60.0.3/27</td><td>10.60.0.1</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Table: Sub-interfaces R1 -->
+      <div class="ref-panel">
+        <div class="ref-header" onclick="toggleRef(this)">
+          <div class="ref-header-left">
+            <span class="lab-badge" style="font-size:.6rem">LAB 2</span>
+            <div>
+              <div class="ref-title">Sub-interfaces Router R1 — Inter-VLAN Santiago</div>
+              <div class="ref-sub">encapsulation dot1q · IPs de gateway</div>
+            </div>
+          </div>
+          <span style="color:var(--txt3);font-size:.8rem">▼</span>
+        </div>
+        <div class="ref-body">
+          <table class="ref-table">
+            <thead><tr><th>Sub-interfaz</th><th>VLAN</th><th>Encapsulation</th><th>IP Address</th></tr></thead>
+            <tbody>
+              <tr><td class="hi">e0/0.60</td><td class="amber">60</td><td>dot1q 60</td><td class="blue">10.60.0.1 255.255.255.224</td></tr>
+              <tr><td class="hi">e0/0.70</td><td class="amber">70</td><td>dot1q 70</td><td class="blue">10.60.0.33 255.255.255.224</td></tr>
+              <tr><td class="hi">e0/0.80</td><td class="amber">80</td><td>dot1q 80</td><td class="blue">10.60.0.65 255.255.255.224</td></tr>
+              <tr><td class="hi">e0/1</td><td>—</td><td>N/A</td><td class="red">192.168.1.2 255.255.255.252</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Table: Rutas estáticas -->
+      <div class="ref-panel">
+        <div class="ref-header" onclick="toggleRef(this)">
+          <div class="ref-header-left">
+            <span class="lab-badge" style="font-size:.6rem">LAB 2</span>
+            <div>
+              <div class="ref-title">Rutas estáticas requeridas — R0 y R1</div>
+              <div class="ref-sub">ip route [red] [máscara] [próximo salto]</div>
+            </div>
+          </div>
+          <span style="color:var(--txt3);font-size:.8rem">▼</span>
+        </div>
+        <div class="ref-body">
+          <p style="font-size:.72rem;color:var(--txt2);margin-bottom:.75rem">⚠ Solo se crean rutas de redes que el router NO conoce directamente.</p>
+          <table class="ref-table">
+            <thead><tr><th>Router</th><th>Red destino</th><th>Máscara</th><th>Próximo salto</th></tr></thead>
+            <tbody>
+              <tr><td class="amber">R0</td><td>10.60.0.0</td><td>/27 (255.255.255.224)</td><td class="red">192.168.1.2</td></tr>
+              <tr><td class="amber">R0</td><td>10.60.0.32</td><td>/27 (255.255.255.224)</td><td class="red">192.168.1.2</td></tr>
+              <tr><td class="amber">R0</td><td>10.60.0.64</td><td>/27 (255.255.255.224)</td><td class="red">192.168.1.2</td></tr>
+              <tr><td class="blue">R1</td><td>172.16.30.0</td><td>/24 (255.255.255.0)</td><td class="red">192.168.1.1</td></tr>
+              <tr><td class="blue">R1</td><td>10.40.0.0</td><td>/24 (255.255.255.0)</td><td class="red">192.168.1.1</td></tr>
+              <tr><td class="blue">R1</td><td>192.168.50.0</td><td>/24 (255.255.255.0)</td><td class="red">192.168.1.1</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── TAB: RANKING ── -->
+    <div id="tab-ranking" style="display:none">
+      <div class="flex-between mb-1">
+        <span class="section-title">🏆 Clasificación</span>
+        <button class="btn-sm" onclick="renderRanking()">↻ Actualizar</button>
+      </div>
+      <div class="rank-list" id="rank-list"></div>
+      <p style="font-size:.7rem;color:var(--txt3);margin-top:.875rem;line-height:1.6">
+        Para ver a tus compañeros: pídeles que exporten su progreso (.json) y luego impórtalo con "Importar compañero" en la pestaña Mis hitos.
+      </p>
+    </div>
+
+    <!-- ── TAB: CLASE ── -->
+    <div id="tab-clase" style="display:none">
+      <div class="flex-between mb-1">
+        <span class="section-title">📊 Vista del profesor</span>
+        <button class="btn-sm" onclick="renderClase()">↻ Actualizar</button>
+      </div>
+      <div class="stat-grid" id="stat-grid"></div>
+      <div class="class-grid" id="class-grid"></div>
+    </div>
+
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+/* ══════ DATA ══════ */
+const PHASES = [
+  {
+    id:'planificacion', label:'Planificación', color:'#b48afc',
+    hitos:[
+      {t:'Completar tabla: rango y broadcast de VLAN70 (10.60.0.32/27)', type:'plan'},
+      {t:'Completar tabla: rango y broadcast de VLAN80 (10.60.0.64/27)', type:'plan'},
+      {t:'Completar tabla de IPs para PC7–PC12 con sus gateways', type:'plan'},
+      {t:'Identificar qué sub-interfaz del R1 es gateway de cada VLAN', type:'plan'},
+    ]
+  },
+  {
+    id:'sw4', label:'SW4 (core)', color:'#4d9de0',
+    hitos:[
+      {t:'Crear VLANs 60, 70 y 80 en SW4', type:'config'},
+      {t:'Configurar F0/24 como trunk (hacia SW5)', type:'config'},
+      {t:'Configurar F0/23 como trunk (hacia SW6)', type:'config'},
+      {t:'Configurar F0/22 como trunk (hacia R1)', type:'config'},
+      {t:'Verificar VLANs activas: show vlan brief', type:'verify'},
+    ]
+  },
+  {
+    id:'sw5', label:'SW5', color:'#39d0b4',
+    hitos:[
+      {t:'Crear VLANs 60, 70 y 80 en SW5', type:'config'},
+      {t:'F0/1 → acceso VLAN60 (PC7)', type:'config'},
+      {t:'F0/3 → acceso VLAN70 (PC8)', type:'config'},
+      {t:'F0/2 → acceso VLAN80 (PC9)', type:'config'},
+      {t:'F0/24 → trunk hacia SW4', type:'config'},
+      {t:'Verificar: show interfaces trunk en SW5', type:'verify'},
+    ]
+  },
+  {
+    id:'sw6', label:'SW6', color:'#38bdf8',
+    hitos:[
+      {t:'Crear VLANs 60, 70 y 80 en SW6', type:'config'},
+      {t:'F0/1 → acceso VLAN70 (PC10)', type:'config'},
+      {t:'F0/2 → acceso VLAN80 (PC11)', type:'config'},
+      {t:'F0/3 → acceso VLAN60 (PC12)', type:'config'},
+      {t:'F0/24 → trunk hacia SW4', type:'config'},
+      {t:'Verificar: show vlan brief en SW6', type:'verify'},
+    ]
+  },
+  {
+    id:'r1', label:'Router R1', color:'#f0b429',
+    hitos:[
+      {t:'Activar interfaz e0/0 con no shutdown', type:'lab'},
+      {t:'Crear sub-interfaz e0/0.60 + encapsulation dot1q 60', type:'lab'},
+      {t:'Asignar IP 10.60.0.1/27 a e0/0.60 (gateway VLAN60)', type:'config'},
+      {t:'Crear sub-interfaz e0/0.70 + encapsulation dot1q 70', type:'lab'},
+      {t:'Asignar IP 10.60.0.33/27 a e0/0.70 (gateway VLAN70)', type:'config'},
+      {t:'Crear sub-interfaz e0/0.80 + encapsulation dot1q 80', type:'lab'},
+      {t:'Asignar IP 10.60.0.65/27 a e0/0.80 (gateway VLAN80)', type:'config'},
+      {t:'Verificar sub-interfaces: show ip interface brief', type:'verify'},
+    ]
+  },
+  {
+    id:'pcs', label:'PCs Santiago', color:'#56d364',
+    hitos:[
+      {t:'PC7: IP 10.60.0.2/27 · GW 10.60.0.1 (VLAN60)', type:'config'},
+      {t:'PC8: IP 10.60.0.34/27 · GW 10.60.0.33 (VLAN70)', type:'config'},
+      {t:'PC9: IP 10.60.0.66/27 · GW 10.60.0.65 (VLAN80)', type:'config'},
+      {t:'PC10: IP 10.60.0.35/27 · GW 10.60.0.33 (VLAN70)', type:'config'},
+      {t:'PC11: IP 10.60.0.67/27 · GW 10.60.0.65 (VLAN80)', type:'config'},
+      {t:'PC12: IP 10.60.0.3/27 · GW 10.60.0.1 (VLAN60)', type:'config'},
+    ]
+  },
+  {
+    id:'pruebas_stgo', label:'Pruebas SGO', color:'#56d364',
+    hitos:[
+      {t:'Ping exitoso PC7 → PC12 (misma VLAN60)', type:'verify'},
+      {t:'Ping exitoso PC8 → PC10 (misma VLAN70)', type:'verify'},
+      {t:'Ping exitoso PC9 → PC11 (misma VLAN80)', type:'verify'},
+      {t:'Ping inter-VLAN: PC7 → PC8 (VLAN60 → VLAN70)', type:'verify'},
+      {t:'Ping inter-VLAN: PC9 → PC12 (VLAN80 → VLAN60)', type:'verify'},
+      {t:'Ping exitoso PC7 → R1 sub-interfaz e0/0.60', type:'verify'},
+    ]
+  },
+  {
+    id:'wan', label:'WAN + Rutas', color:'#f87171',
+    hitos:[
+      {t:'Configurar IP 192.168.1.1/30 en R0 e0/1', type:'lab'},
+      {t:'Configurar IP 192.168.1.2/30 en R1 e0/1', type:'lab'},
+      {t:'Ping exitoso R0 → R1 (192.168.1.1 → 192.168.1.2)', type:'verify'},
+      {t:'R0: ruta estática → 10.60.0.0/27 via 192.168.1.2', type:'config'},
+      {t:'R0: ruta estática → 10.60.0.32/27 via 192.168.1.2', type:'config'},
+      {t:'R0: ruta estática → 10.60.0.64/27 via 192.168.1.2', type:'config'},
+      {t:'R1: ruta estática → 172.16.30.0/24 via 192.168.1.1', type:'config'},
+      {t:'R1: ruta estática → 10.40.0.0/24 via 192.168.1.1', type:'config'},
+      {t:'R1: ruta estática → 192.168.50.0/24 via 192.168.1.1', type:'config'},
+      {t:'Verificar: show ip route en R0 (ver rutas S)', type:'verify'},
+      {t:'Verificar: show ip route en R1 (ver rutas S)', type:'verify'},
+      {t:'Ping SD→SGO: PC1 (172.16.30.2) → PC7 (10.60.0.2)', type:'verify'},
+      {t:'Ping SD→SGO: PC2 (10.40.0.2) → PC10 (10.60.0.35)', type:'verify'},
+      {t:'Ping SGO→SD: PC8 (10.60.0.34) → PC3 (192.168.50.2)', type:'verify'},
+      {t:'🔥 RETO: Traceroute PC1 → PC12 — documenta los 4 saltos', type:'reto'},
+      {t:'🔥 RETO: Ping PC6 → PC9 — captura en Wireshark o simulación', type:'reto'},
+    ]
+  },
+];
+
+const TYPE_BADGE = {
+  plan:   {cls:'b-plan',   lbl:'Plan',    strip:'#b48afc'},
+  lab:    {cls:'b-lab',    lbl:'Lab',     strip:'#4d9de0'},
+  config: {cls:'b-config', lbl:'Config',  strip:'#f0b429'},
+  verify: {cls:'b-verify', lbl:'Verificar',strip:'#56d364'},
+  reto:   {cls:'b-reto',   lbl:'Reto',    strip:'#f87171'},
+};
+const XP_MAP = {plan:10, lab:25, config:15, verify:20, reto:60};
+const SK = 'ra_lab2_v1';
+const PK = 'ra_lab2_peers_v1';
+
+let ME = null, myData = {}, peers = {}, curPhase = 0;
+
+/* ── utils ── */
+const initials = n => (n||'').trim().split(/\s+/).map(w=>w[0]).join('').slice(0,2).toUpperCase()||'??';
+function colorFor(n){
+  const h = Array.from(n||'').reduce((a,c)=>a+c.charCodeAt(0),0)%360;
+  return `hsl(${h},55%,55%)`;
+}
+function colorBg(n){
+  const h = Array.from(n||'').reduce((a,c)=>a+c.charCodeAt(0),0)%360;
+  return `hsl(${h},45%,12%)`;
+}
+function calcXP(data){
+  return PHASES.reduce((xp,ph)=>{
+    const done = data[ph.id]||[];
+    return xp + ph.hitos.reduce((s,h,i)=> s+(done.includes(i)?XP_MAP[h.type]:0), 0);
+  },0);
+}
+function totalHitos(){ return PHASES.reduce((a,p)=>a+p.hitos.length,0); }
+function doneCount(data){ return PHASES.reduce((a,p)=>a+(data[p.id]||[]).length,0); }
+
+/* ── storage ── */
+function saveMe(){
+  const snap = {name:ME, xp:calcXP(myData), data:myData, ts:Date.now()};
+  localStorage.setItem(SK, JSON.stringify(snap));
+  peers[ME] = snap;
+  localStorage.setItem(PK, JSON.stringify(peers));
+}
+function loadMe(){
+  try{ const r=localStorage.getItem(SK); return r?JSON.parse(r):null; }catch(e){return null;}
+}
+function loadPeers(){
+  try{ const r=localStorage.getItem(PK); peers=r?JSON.parse(r):{}; }catch(e){peers={};}
+}
+
+/* ── login ── */
+function previewAv(){
+  const v = document.getElementById('login-input').value.trim();
+  const el= document.getElementById('login-av');
+  el.textContent = v ? initials(v) : '?';
+  el.style.background   = v ? colorBg(v)  : '';
+  el.style.color        = v ? colorFor(v) : '';
+  el.style.borderColor  = v ? colorFor(v)+'66' : '';
+}
+function doLogin(){
+  const name = document.getElementById('login-input').value.trim();
+  if(name.length<2){ document.getElementById('login-err').textContent='Escribe al menos 2 caracteres.'; return; }
+  ME = name;
+  loadPeers();
+  const stored = loadMe();
+  myData = (stored && stored.name===ME) ? (stored.data||{}) : {};
+  peers[ME] = {name:ME, xp:calcXP(myData), data:myData, ts:Date.now()};
+  localStorage.setItem(PK, JSON.stringify(peers));
+  renderMain();
+  document.getElementById('screen-login').classList.remove('active');
+  document.getElementById('screen-main').classList.add('active');
+}
+
+/* ── topbar ── */
+function renderMain(){
+  const col=colorFor(ME), bg=colorBg(ME);
+  const av=document.getElementById('top-av');
+  av.textContent=initials(ME); av.style.background=bg; av.style.color=col;
+  document.getElementById('top-name').textContent=ME;
+  document.getElementById('top-xp').textContent=calcXP(myData)+' XP';
+  renderPhasePills(); renderHitos();
+}
+
+/* ── phase pills ── */
+function renderPhasePills(){
+  document.getElementById('phase-pills').innerHTML = PHASES.map((p,i)=>{
+    const done=(myData[p.id]||[]).length, total=p.hitos.length;
+    const pct=Math.round(done/total*100);
+    const dot = pct===100?'#56d364':pct>0?'#f0b429':'#30363d';
+    const sel=i===curPhase;
+    return `<button class="phase-pill${sel?' sel':''}"
+      style="${sel?`border-color:${p.color}44;color:${p.color};background:${p.color}11`:''}"
+      onclick="selectPhase(${i})">
+      ${p.label}
+      <span class="mod-dot" style="background:${dot}"></span>
+    </button>`;
+  }).join('');
+}
+
+/* ── hitos ── */
+function renderHitos(){
+  const ph=PHASES[curPhase], done=myData[ph.id]||[];
+  const pct=Math.round(done.length/ph.hitos.length*100);
+  document.getElementById('prog-lbl').textContent=`${done.length} / ${ph.hitos.length} hitos`;
+  document.getElementById('prog-pct').textContent=pct+'%';
+  const fill=document.getElementById('prog-fill');
+  fill.style.width=pct+'%'; fill.style.background=ph.color;
+  document.getElementById('hitos-grid').innerHTML = ph.hitos.map((h,i)=>{
+    const isDone=done.includes(i), b=TYPE_BADGE[h.type];
+    return `<div class="hito-card${isDone?' done':''}"
+      style="--strip-color:${b.strip}"
+      onclick="toggleHito(${i})">
+      <div class="hito-top">
+        <span class="hito-title">${h.t}</span>
+        <div class="hito-meta">
+          <span class="badge ${b.cls}">${b.lbl}</span>
+          <div class="check-ring">${isDone?'✓':''}</div>
+        </div>
+      </div>
+      <div class="hito-xp">+${XP_MAP[h.type]} XP</div>
+    </div>`;
+  }).join('');
+}
+function toggleHito(i){
+  const ph=PHASES[curPhase];
+  if(!myData[ph.id]) myData[ph.id]=[];
+  const arr=myData[ph.id], idx=arr.indexOf(i), h=ph.hitos[i];
+  if(idx>-1){arr.splice(idx,1); toast('-'+XP_MAP[h.type]+' XP');}
+  else       {arr.push(i);      toast('+'+XP_MAP[h.type]+' XP — ¡'+TYPE_BADGE[h.type].lbl+' completado!');}
+  saveMe();
+  document.getElementById('top-xp').textContent=calcXP(myData)+' XP';
+  renderPhasePills(); renderHitos();
+}
+function selectPhase(i){ curPhase=i; renderPhasePills(); renderHitos(); }
+
+/* ── export / import ── */
+function exportData(){
+  const snap={name:ME, xp:calcXP(myData), data:myData, ts:Date.now(), lab:'lab2', version:1};
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([JSON.stringify(snap,null,2)],{type:'application/json'}));
+  a.download='lab2_'+ME.replace(/\s+/g,'_')+'.json'; a.click();
+  toast('Archivo exportado correctamente');
+}
+function importData(e){
+  const file=e.target.files[0]; if(!file) return;
+  const r=new FileReader();
+  r.onload=ev=>{
+    try{
+      const snap=JSON.parse(ev.target.result);
+      if(!snap.name||!snap.data) throw new Error();
+      peers[snap.name]=snap;
+      localStorage.setItem(PK,JSON.stringify(peers));
+      toast('✓ Importado: '+snap.name+' ('+snap.xp+' XP)');
+    }catch(err){ toast('Error: archivo no válido'); }
+  };
+  r.readAsText(file); e.target.value='';
+}
+
+/* ── ranking ── */
+function renderRanking(){
+  const users=Object.values(peers).sort((a,b)=>b.xp-a.xp);
+  const list=document.getElementById('rank-list');
+  if(!users.length){list.innerHTML='<div class="empty">Sin compañeros aún. Importa su progreso.</div>';return;}
+  const maxXP=users[0].xp||1;
+  list.innerHTML=users.map((u,i)=>{
+    const isMe=u.name===ME, col=colorFor(u.name), bg=colorBg(u.name);
+    const pos=i+1, medal=pos===1?'🥇':pos===2?'🥈':pos===3?'🥉':pos;
+    const modsDone=PHASES.filter(p=>(u.data?.[p.id]||[]).length===p.hitos.length).length;
+    return `<div class="rank-row${isMe?' me':''}">
+      <span class="rank-pos">${medal}</span>
+      <div class="avatar" style="background:${bg};color:${col}">${initials(u.name)}</div>
+      <div class="rank-info">
+        <div class="rank-name">${u.name}${isMe?' (tú)':''}</div>
+        <div class="rank-sub">${modsDone} fase${modsDone!==1?'s':''} completada${modsDone!==1?'s':''}</div>
+      </div>
+      <div class="rank-bar-wrap">
+        <div class="rank-bar" style="width:${Math.round(u.xp/maxXP*100)}%;background:${col}"></div>
+      </div>
+      <span class="rank-xp" style="color:${col}">${u.xp} XP</span>
+    </div>`;
+  }).join('');
+}
+
+/* ── clase ── */
+function renderClase(){
+  const users=Object.values(peers).sort((a,b)=>b.xp-a.xp);
+  const total=totalHitos();
+  const avgPct=users.length?Math.round(users.reduce((a,u)=>a+doneCount(u.data||{})/total*100,0)/users.length):0;
+  const topXP=users[0]?.xp||0;
+  const completos=users.filter(u=>PHASES.every(p=>(u.data?.[p.id]||[]).length===p.hitos.length)).length;
+  document.getElementById('stat-grid').innerHTML=`
+    <div class="stat-card"><div class="stat-val">${users.length}</div><div class="stat-lbl">Alumnos</div></div>
+    <div class="stat-card"><div class="stat-val">${avgPct}%</div><div class="stat-lbl">Avance prom.</div></div>
+    <div class="stat-card"><div class="stat-val" style="color:var(--amber)">${topXP}</div><div class="stat-lbl">XP más alto</div></div>
+    <div class="stat-card"><div class="stat-val" style="color:var(--green)">${completos}</div><div class="stat-lbl">Labs completos</div></div>`;
+  if(!users.length){
+    document.getElementById('class-grid').innerHTML='<div class="empty" style="grid-column:1/-1">Importa progreso de compañeros para verlos aquí.</div>';
+    return;
+  }
+  document.getElementById('class-grid').innerHTML=users.map(u=>{
+    const col=colorFor(u.name), bg=colorBg(u.name), isMe=u.name===ME;
+    const bars=PHASES.map(p=>{
+      const done=(u.data?.[p.id]||[]).length, pct=Math.round(done/p.hitos.length*100);
+      return `<div class="mini-row">
+        <span class="mini-lbl">${p.label}</span>
+        <div class="mini-track"><div class="mini-fill" style="width:${pct}%;background:${p.color}"></div></div>
+        <span class="mini-pct">${pct}%</span>
+      </div>`;
+    }).join('');
+    return `<div class="class-card${isMe?' me':''}">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:.5rem">
+        <div class="avatar" style="background:${bg};color:${col};width:26px;height:26px;font-size:.6rem">${initials(u.name)}</div>
+        <div>
+          <div style="font-size:.8rem;font-weight:700">${u.name}${isMe?' (tú)':''}</div>
+          <div style="font-size:.65rem;color:var(--txt2);font-family:var(--mono)">${u.xp} XP</div>
+        </div>
+      </div>
+      ${bars}
+    </div>`;
+  }).join('');
+}
+
+/* ── tabs ── */
+function showTab(id,btn){
+  ['hitos','ref','ranking','clase'].forEach(t=>{
+    const el=document.getElementById('tab-'+t);
+    if(el) el.style.display='none';
+  });
+  document.querySelectorAll('.tab').forEach(b=>b.classList.remove('on'));
+  document.getElementById('tab-'+id).style.display='block';
+  btn.classList.add('on');
+  if(id==='ranking') renderRanking();
+  if(id==='clase')   renderClase();
+}
+
+/* ── reference toggle ── */
+function toggleRef(header){
+  const body=header.nextElementSibling;
+  const arrow=header.querySelector('span:last-child');
+  const isOpen=body.classList.toggle('open');
+  arrow.style.transform=isOpen?'rotate(180deg)':'rotate(0deg)';
+  header.style.borderColor=isOpen?'var(--border)':'transparent';
+}
+
+/* ── toast ── */
+function toast(msg){
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.classList.add('show');
+  clearTimeout(t._t); t._t=setTimeout(()=>t.classList.remove('show'),2200);
+}
+</script>
+</body>
+</html>
